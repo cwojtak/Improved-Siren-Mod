@@ -27,7 +27,6 @@ local disableBeep = false -- Set to true to disable all beeps
 
 local fadeRatio = 50 -- Higher = faster fade
 local fadeInTable = {}
-local fadeOutTable = {}
 
 -- AI
 local serTmp = {}
@@ -36,12 +35,8 @@ local randomizeTimer = 0
 local randomizeNext = 0
 local rdm = 0
 
--- local manualSirenPitch = 0
--- local manualSirenIncreaseRatio = 0.010
--- local manualSirenDecreaseRatio = 0.001
-
-local beep = obj:createSFXSource2(soundsPath.."default_sounds/beep.wav",    "AudioDefault3D", "beep", v.data.refNodes[0].ref, 0)
-local click = obj:createSFXSource2(soundsPath.."default_sounds/click.wav",    "AudioDefault3D", "click", v.data.refNodes[0].ref, 0)
+local beep
+local click
 -- =================== VARIABLES ===================
 
 
@@ -63,15 +58,15 @@ local function useConfig(tmpConfig)
 	for soundName, soundData in pairs(config.sounds) do
 		if vehSounds[soundName] then obj:deleteSFXSource(vehSounds[soundName].id) print("old sound removed from memory") end
 		if soundData.sound ~= "blank.wav" then
-			print("Loading sound "..soundData.sound)
+			-- print("Loading sound "..soundData.sound)
 			vehSounds[soundName] = {
 				name = soundName,
-				id = obj:createSFXSource2(soundsPath..soundData.sound, "AudioDefaultLoop3D", soundName..obj:getID()..id, v.data.refNodes[0].ref, 0),
+				id = obj:createSFXSource(soundsPath..soundData.sound, "AudioDefaultLoop3D", soundName..obj:getID()..id, 0),
 				volume = soundData.volume * soundVolumeMultiplier
 			}
 			id = id + 1 -- The id is used because two sounds with same name won't work, even if the old one was deleted
 		else
-			print("Skipping sound "..soundData.sound)
+			-- print("Skipping sound "..soundData.sound)
 			vehSounds[soundName] = nil
 		end
 	end
@@ -86,34 +81,13 @@ local function toggleSound(soundData, toggle)
 		obj:setVolume(soundID, 0)
 		obj:playSFX(soundID)
 		fadeInTable[soundData.name] = 0
-		fadeOutTable[soundData.name] = nil
 		-- print("Turned on "..snd.name)
 	else
-		fadeOutTable[soundData.name] = nil -- Disabled fade out: used to be `soundData.volume`
 		obj:setVolume(soundID, 0)
 		obj:stopSFX(soundID)
 		fadeInTable[soundData.name] = nil
 		-- print("Turned off "..snd.name)
 	end
-end
-
-local function fadeOut(dt)
-    for soundName, volume in pairs(fadeOutTable) do
-        local soundData = vehSounds[soundName]
-        if soundData and soundData.id then
-            local soundID = soundData.id
-            local newVolume = volume - dt * fadeRatio
-            if newVolume <= 0 then
-                obj:stopSFX(soundID)
-                fadeOutTable[soundName] = nil
-            else
-                fadeOutTable[soundName] = newVolume
-                obj:setVolume(soundID, newVolume)
-            end
-        else
-            fadeOutTable[soundName] = nil
-        end
-    end
 end
 
 local function fadeIn(dt)
@@ -287,7 +261,6 @@ local function updateGFX(dt)
 	if e.lightbar == 0 and lastChaseMode == 1 then e.sChaseMode = 0 updateApp() end
 
 	fadeIn(dt)
-	fadeOut(dt)
 
 	-- If the vehicle is chasing the player, if the lightbar is on then we use the mod's siren
 	if ai.getState().mode == "follow" or ai.getState().mode == "chase" then
@@ -382,7 +355,7 @@ local function updateGFX(dt)
 	lastHoldSiren = e.sHoldSiren
 end
 
-local function onExtensionLoaded()
+local function initializeElectrics()
 	local e = electrics.values
 	e.sHorn = 0
 	e.sSiren = 0
@@ -392,6 +365,14 @@ local function onExtensionLoaded()
 	e.sHoldSiren = 0
 	e.sChaseMode = 0
 	math.randomseed(os.time()) -- For AI randomization
+end
+
+local function onExtensionLoaded()
+	beep = obj:createSFXSource(soundsPath.."default_sounds/beep.wav", "AudioDefault3D", "beep"..obj:getID()..id, 0)
+	id = id + 1
+	click = obj:createSFXSource(soundsPath.."default_sounds/click.wav", "AudioDefault3D", "click"..obj:getID()..id, 0)
+	id = id + 1
+	initializeElectrics()
 end
 
 local function cleanupSounds()
@@ -404,10 +385,22 @@ local function cleanupSounds()
         end
     end
 
+	if beep then
+		obj:stopSFX(beep)
+		obj:deleteSFXSource(beep)
+	end
+	if click then
+		obj:stopSFX(click)
+		obj:deleteSFXSource(click)
+	end
+	beep = obj:createSFXSource(soundsPath.."default_sounds/beep.wav", "AudioDefault3D", "beep"..obj:getID()..id, 0)
+	id = id + 1
+	click = obj:createSFXSource(soundsPath.."default_sounds/click.wav", "AudioDefault3D", "click"..obj:getID()..id, 0)
+	id = id + 1
+
     -- 2. Clear the Lua tables
     vehSounds = {}
     fadeInTable = {}
-    fadeOutTable = {}
     
     -- 3. Reset the "last" check so updateGFX runs useConfig() again
     lastConfig = nil
@@ -415,10 +408,8 @@ end
 
 local function onReset()
 	cleanupSounds()
-	onExtensionLoaded()
+	initializeElectrics()
 end
-
-
 
 -- Functions
 M.onExtensionLoaded = onExtensionLoaded
@@ -434,7 +425,5 @@ M.rumblerHold 		= rumblerHold
 M.warningToggle 	= warningToggle
 M.warningHold 		= warningHold
 M.policeHorn 		= policeHorn
-
-
 
 return M
