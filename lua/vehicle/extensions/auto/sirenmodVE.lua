@@ -80,6 +80,7 @@ end
 local function toggleSound(soundData, toggle)
 	if not soundData then return end
 	local soundID = soundData.id
+	if not soundID then return end
 	if toggle == true or toggle == 1 then -- 1 is when the user press a key
 		obj:cutSFX(soundID)
 		obj:setVolume(soundID, 0)
@@ -88,25 +89,31 @@ local function toggleSound(soundData, toggle)
 		fadeOutTable[soundData.name] = nil
 		-- print("Turned on "..snd.name)
 	else
-		fadeOutTable[soundData.name] = soundData.volume
+		fadeOutTable[soundData.name] = nil -- Disabled fade out: used to be `soundData.volume`
+		obj:setVolume(soundID, 0)
+		obj:stopSFX(soundID)
 		fadeInTable[soundData.name] = nil
 		-- print("Turned off "..snd.name)
 	end
 end
 
 local function fadeOut(dt)
-	for soundName, volume in pairs(fadeOutTable) do
-		local soundID = vehSounds[soundName].id
-		local newVolume = volume - dt * fadeRatio
-		if newVolume < 0 then
-			newVolume = 0
-			obj:stopSFX(soundID)
-			fadeOutTable[soundName] = nil
-		else
-			fadeOutTable[soundName] = newVolume
-		end
-		obj:setVolume(soundID, newVolume)
-	end
+    for soundName, volume in pairs(fadeOutTable) do
+        local soundData = vehSounds[soundName]
+        if soundData and soundData.id then
+            local soundID = soundData.id
+            local newVolume = volume - dt * fadeRatio
+            if newVolume <= 0 then
+                obj:stopSFX(soundID)
+                fadeOutTable[soundName] = nil
+            else
+                fadeOutTable[soundName] = newVolume
+                obj:setVolume(soundID, newVolume)
+            end
+        else
+            fadeOutTable[soundName] = nil
+        end
+    end
 end
 
 local function fadeIn(dt)
@@ -375,8 +382,6 @@ local function updateGFX(dt)
 	lastHoldSiren = e.sHoldSiren
 end
 
-
-
 local function onExtensionLoaded()
 	local e = electrics.values
 	e.sHorn = 0
@@ -389,9 +394,27 @@ local function onExtensionLoaded()
 	math.randomseed(os.time()) -- For AI randomization
 end
 
+local function cleanupSounds()
+    if vehSounds then
+        for _, soundData in pairs(vehSounds) do
+            if soundData and soundData.id then
+                obj:stopSFX(soundData.id)
+                obj:deleteSFXSource(soundData.id)
+            end
+        end
+    end
 
+    -- 2. Clear the Lua tables
+    vehSounds = {}
+    fadeInTable = {}
+    fadeOutTable = {}
+    
+    -- 3. Reset the "last" check so updateGFX runs useConfig() again
+    lastConfig = nil
+end
 
 local function onReset()
+	cleanupSounds()
 	onExtensionLoaded()
 end
 

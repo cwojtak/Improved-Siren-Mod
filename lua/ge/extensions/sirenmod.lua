@@ -8,7 +8,10 @@
 local M = {}
 -- =================== VARIABLES ===================
 
-
+local function onExtensionLoaded()
+	setExtensionUnloadMode("sirenmod", "manual")
+	log('I', 'sirenmod', "Extension loaded and set to manual persistence")
+end
 
 local function onUiChangedState(state)
 	if state == "menu.mainmenu" then
@@ -18,10 +21,7 @@ local function onUiChangedState(state)
 	end
 end
 
-
-
+M.onExtensionLoaded                     = onExtensionLoaded
 M.onUiChangedState 			= onUiChangedState
-
-
 
 return M
